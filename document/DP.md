@@ -3174,45 +3174,26 @@ const handleClose = () => {
 <template>
   <Teleport to="body">
     <Transition name="menu-fade">
-      <div
-        v-if="visible"
-        ref="menuRef"
-        class="cesium-context-menu"
-        :style="menuStyle"
-        @click.stop
-      >
+      <div v-if="visible" ref="menuRef" class="cesium-context-menu" :style="menuStyle" @click.stop>
         <template v-for="item in menuItems" :key="item.title">
-          <div
-            v-if="isDropdown(item)"
-            class="menu-item dropdown"
-            :class="{ disabled: item.disabled }"
-            @mouseenter="showDropdown($event, item)"
-            @mouseleave="hideDropdown"
-          >
+          <div v-if="isDropdown(item)" class="menu-item dropdown" :class="{ disabled: item.disabled }"
+            @mouseenter="showDropdown($event, item)" @mouseleave="hideDropdown">
             <div class="menu-item-content">
               <span>{{ item.title }}</span>
               <span class="dropdown-arrow">▶</span>
             </div>
             <div class="menu-dropdown-content" :style="dropdownStyle">
-              <button
-                v-for="subItem in item.menu"
-                :key="subItem.title"
-                class="dropdown-item"
+              <button v-for="subItem in item.menu" :key="subItem.title" class="dropdown-item"
                 :class="{ disabled: subItem.disabled }"
                 :data-tooltip="subItem.url && subItem.url.length > 80 ? subItem.url.substring(0, 80) + '...' : subItem.url"
-                @click="handleClick(subItem, $event)"
-              >
+                @click="handleClick(subItem, $event)">
                 {{ subItem.title }}
               </button>
             </div>
           </div>
-          <div
-            v-else
-            class="menu-item"
-            :class="{ disabled: item.disabled }"
+          <div v-else class="menu-item" :class="{ disabled: item.disabled }"
             :data-tooltip="item.url && item.url.length > 80 ? item.url.substring(0, 80) + '...' : item.url"
-            @click="handleClick(item, $event)"
-          >
+            @click="handleClick(item, $event)">
             <div class="menu-item-content">{{ item.title }}</div>
           </div>
         </template>
@@ -3229,12 +3210,10 @@ import {
   onMounted,
   onUnmounted,
   shallowRef,
-  type ShallowRef
 } from 'vue'
 import {
   SceneTransforms,
   Matrix4,
-  type Viewer,
   type Cartesian3
 } from 'cesium'
 import { getViewer } from '@/utils/cesium/helpers'
@@ -3323,7 +3302,7 @@ const updatePosition = () => {
   }
 
   try {
-    const pos = SceneTransforms.wtc(v.scene, props.position as any)
+    const pos = SceneTransforms.worldToWindowCoordinates(v.scene, props.position as any)
     if (!pos) {
       screenPosition.value = null
       return
@@ -3334,7 +3313,8 @@ const updatePosition = () => {
     if (v.scene) {
       lastViewMatrix.value = Matrix4.clone(v.scene.camera.viewMatrix)
     }
-  } catch {
+  } catch (e) {
+    console.warn('CesiumContextMenu: 坐标转换失败', e)
     screenPosition.value = null
   }
 }
@@ -3379,6 +3359,7 @@ const hideDropdown = () => {
 
 const handleClick = (item: MenuItemBase, event: MouseEvent) => {
   event.stopPropagation()
+  console.log('handleClick:', item);
 
   if (item.disabled) return
 

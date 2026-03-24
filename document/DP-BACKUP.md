@@ -2296,6 +2296,343 @@ onUnmounted(() => {
 </style>
 ```
 
+### Popup 组件
+```vue
+// src/components/Popup/index.vue
+<template>
+  <Teleport to="body">
+    <Transition name="popup-fade">
+      <div v-if="visible" ref="popupRef" class="cesium-popup" :style="popupStyle" @click.stop>
+        <div class="cesium-popup-content-wrapper">
+          <slot name="header">
+            <div class="cesium-popup-header">
+              <span class="cesium-popup-title">{{ title }}</span>
+              <span class="cesium-popup-close" @click="handleClose">×</span>
+            </div>
+          </slot>
+          <div class="cesium-popup-content">
+            <slot>
+              <span v-html="content" />
+            </slot>
+          </div>
+        </div>
+        <div class="cesium-popup-tip" :style="tipStyle" />
+      </div>
+    </Transition>
+  </Teleport>
+</template>
+
+<script setup lang="ts">
+import {
+  ref,
+  computed,
+  onMounted,
+  onUnmounted,
+  watch,
+  shallowRef,
+} from 'vue'
+
+import {
+  SceneTransforms,
+  Cartesian3,
+  Matrix4,
+} from 'cesium'
+import { getViewer } from '@/utils/cesium/helpers'
+
+defineOptions({ name: 'CesiumPopup' })
+
+interface Props {
+  position: Cartesian3 | [number, number, number]
+  title?: string
+  content?: string
+  offset?: [number, number]
+  tipOffset?: number
+  closeOnEsc?: boolean
+  closeOnClickOutside?: boolean
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  title: '信息',
+  content: '',
+  offset: () => [0, 0],
+  tipOffset: 0,
+  closeOnEsc: true,
+  closeOnClickOutside: true
+})
+
+const emit = defineEmits<{
+  close: []
+  show: []
+}>()
+
+const visible = ref(false)
+const popupRef = ref<HTMLElement | null>(null)
+const screenPosition = ref<{ x: number; y: number } | null>(null)
+
+const lastViewMatrix = shallowRef<Matrix4 | null>(null)
+
+const viewer = computed(() => getViewer())
+
+const popupStyle = computed(() => {
+  if (!visible.value || !screenPosition.value) {
+    return { display: 'none' }
+  }
+
+  const [offsetX, offsetY] = props.offset
+  const { x, y } = screenPosition.value
+
+  return {
+    left: `${x + offsetX}px`,
+    top: `${y + offsetY}px`,
+    transform: `translate(-50%, -100%)`,
+    display: 'block'
+  }
+})
+
+const tipStyle = computed(() => {
+  const [offsetX] = props.offset
+  const left = 50 + offsetX + props.tipOffset
+  return {
+    left: `${left}%`
+  }
+})
+
+const updatePosition = () => {
+  const v = viewer.value
+  if (!v?.scene || !props.position) {
+    visible.value = false
+    return
+  }
+
+  let cartesian: Cartesian3
+  if (Array.isArray(props.position)) {
+    cartesian = Cartesian3.fromDegrees(props.position[0], props.position[1], props.position[2])
+  } else {
+    cartesian = props.position
+  }
+
+  try {
+    const pos = SceneTransforms.worldToWindowCoordinates(v.scene, cartesian as any)
+    if (!pos) {
+      visible.value = false
+      return
+    }
+
+    const x = Math.round(pos.x)
+    const y = Math.round(pos.y)
+
+    screenPosition.value = { x, y }
+    visible.value = true
+
+    if (v.scene) {
+      lastViewMatrix.value = Matrix4.clone(v.scene.camera.viewMatrix)
+    }
+  } catch (e) {
+    console.warn('CesiumPopup: 坐标转换失败', e)
+    visible.value = false
+  }
+}
+
+const onPostUpdate = () => {
+  const v = viewer.value
+  if (!v?.scene) return
+
+  const currentMatrix = v.scene.camera.viewMatrix
+
+  if (lastViewMatrix.value && !Matrix4.equalsEpsilon(currentMatrix, lastViewMatrix.value, 0.0001)) {
+    lastViewMatrix.value = Matrix4.clone(currentMatrix)
+    updatePosition()
+  }
+}
+
+const handleClose = () => {
+  visible.value = false
+  emit('close')
+}
+
+const handleEsc = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && props.closeOnEsc && visible.value) {
+    handleClose()
+  }
+}
+
+const handleClickOutside = (e: MouseEvent) => {
+  if (props.closeOnClickOutside && visible.value && popupRef.value) {
+    if (!popupRef.value.contains(e.target as Node)) {
+      handleClose()
+    }
+  }
+}
+
+const handleResize = () => {
+  if (visible.value) {
+    updatePosition()
+  }
+}
+
+let postRenderRemove: (() => void) | null = null
+
+const bindEvents = () => {
+  const v = viewer.value
+  if (v?.scene?.postRender) {
+    postRenderRemove = v.scene.postRender.addEventListener(onPostUpdate)
+  }
+}
+
+const unbindEvents = () => {
+  if (postRenderRemove) {
+    postRenderRemove()
+    postRenderRemove = null
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleEsc)
+  window.addEventListener('resize', handleResize)
+  bindEvents()
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleEsc)
+  window.removeEventListener('resize', handleResize)
+  unbindEvents()
+})
+
+watch(
+  () => props.position,
+  () => updatePosition(),
+  { immediate: true }
+)
+
+watch(visible, (val) => {
+  if (val) emit('show')
+})
+
+defineExpose({
+  show() {
+    visible.value = true
+    updatePosition()
+  },
+  hide() {
+    visible.value = false
+  },
+  updatePosition
+})
+</script>
+
+<style scoped>
+.cesium-popup {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: auto;
+}
+
+.cesium-popup-content-wrapper {
+  background: linear-gradient(135deg, rgba(28, 42, 66, 0.95), rgba(16, 25, 40, 0.98));
+  color: #e8eaed;
+  border-radius: 8px;
+  padding: 14px 18px;
+  min-width: 200px;
+  max-width: 380px;
+  font-size: 13px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+}
+
+.cesium-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.cesium-popup-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.cesium-popup-close {
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  color: #9aa0a6;
+  transition: color 0.2s;
+}
+
+.cesium-popup-close:hover {
+  color: #ff6b6b;
+}
+
+.cesium-popup-content {
+  line-height: 1.6;
+}
+
+.cesium-popup-tip {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid rgba(28, 42, 66, 0.95);
+}
+
+.popup-fade-enter-active,
+.popup-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.popup-fade-enter-from,
+.popup-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, calc(-100% + 8px));
+}
+</style>
+```
+
+**组件特性**:
+- **Teleport 渲染**：使用 Vue Teleport 将弹窗渲染到 body，确保 z-index 正确
+- **淡入淡出动画**：通过 Transition 组件实现平滑过渡效果
+- **相机同步**：监听 postRender 事件，在地图缩放/旋转时自动更新位置
+- **多坐标格式支持**：支持 Cartesian3 或 `[lng, lat, alt]` 数组格式
+- **键盘交互**：支持 ESC 键关闭弹窗
+- **窗口自适应**：监听 resize 事件自动调整位置
+- **插槽支持**：提供 header 插槽和默认插槽，支持自定义内容
+
+**使用示例**:
+```vue
+<template>
+  <CesiumPopup
+    :position="[116.397, 39.908, 0]"
+    title="矿井详情"
+    :offset="[0, 10]"
+    @close="handleClose"
+  >
+    <template #header>
+      <div class="custom-header">自定义标题</div>
+    </template>
+    <div class="mine-info">
+      <p>矿井名称: xxx</p>
+      <p>状态: 在线</p>
+    </div>
+  </CesiumPopup>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+import CesiumPopup from '@/components/Popup/index.vue'
+
+const handleClose = () => {
+  console.log('弹窗关闭')
+}
+</script>
+```
 
 ### cesium 右键菜单
 
@@ -2304,45 +2641,26 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <Transition name="menu-fade">
-      <div
-        v-if="visible"
-        ref="menuRef"
-        class="cesium-context-menu"
-        :style="menuStyle"
-        @click.stop
-      >
+      <div v-if="visible" ref="menuRef" class="cesium-context-menu" :style="menuStyle" @click.stop>
         <template v-for="item in menuItems" :key="item.title">
-          <div
-            v-if="isDropdown(item)"
-            class="menu-item dropdown"
-            :class="{ disabled: item.disabled }"
-            @mouseenter="showDropdown($event, item)"
-            @mouseleave="hideDropdown"
-          >
+          <div v-if="isDropdown(item)" class="menu-item dropdown" :class="{ disabled: item.disabled }"
+            @mouseenter="showDropdown($event, item)" @mouseleave="hideDropdown">
             <div class="menu-item-content">
               <span>{{ item.title }}</span>
               <span class="dropdown-arrow">▶</span>
             </div>
             <div class="menu-dropdown-content" :style="dropdownStyle">
-              <button
-                v-for="subItem in item.menu"
-                :key="subItem.title"
-                class="dropdown-item"
+              <button v-for="subItem in item.menu" :key="subItem.title" class="dropdown-item"
                 :class="{ disabled: subItem.disabled }"
                 :data-tooltip="subItem.url && subItem.url.length > 80 ? subItem.url.substring(0, 80) + '...' : subItem.url"
-                @click="handleClick(subItem, $event)"
-              >
+                @click="handleClick(subItem, $event)">
                 {{ subItem.title }}
               </button>
             </div>
           </div>
-          <div
-            v-else
-            class="menu-item"
-            :class="{ disabled: item.disabled }"
+          <div v-else class="menu-item" :class="{ disabled: item.disabled }"
             :data-tooltip="item.url && item.url.length > 80 ? item.url.substring(0, 80) + '...' : item.url"
-            @click="handleClick(item, $event)"
-          >
+            @click="handleClick(item, $event)">
             <div class="menu-item-content">{{ item.title }}</div>
           </div>
         </template>
@@ -2359,12 +2677,10 @@ import {
   onMounted,
   onUnmounted,
   shallowRef,
-  type ShallowRef
 } from 'vue'
 import {
   SceneTransforms,
   Matrix4,
-  type Viewer,
   type Cartesian3
 } from 'cesium'
 import { getViewer } from '@/utils/cesium/helpers'
@@ -2453,7 +2769,7 @@ const updatePosition = () => {
   }
 
   try {
-    const pos = SceneTransforms.wtc(v.scene, props.position as any)
+    const pos = SceneTransforms.worldToWindowCoordinates(v.scene, props.position as any)
     if (!pos) {
       screenPosition.value = null
       return
@@ -2464,7 +2780,8 @@ const updatePosition = () => {
     if (v.scene) {
       lastViewMatrix.value = Matrix4.clone(v.scene.camera.viewMatrix)
     }
-  } catch {
+  } catch (e) {
+    console.warn('CesiumContextMenu: 坐标转换失败', e)
     screenPosition.value = null
   }
 }
@@ -2509,6 +2826,7 @@ const hideDropdown = () => {
 
 const handleClick = (item: MenuItemBase, event: MouseEvent) => {
   event.stopPropagation()
+  console.log('handleClick:', item);
 
   if (item.disabled) return
 
