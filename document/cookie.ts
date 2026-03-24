@@ -146,3 +146,23 @@ export function Cookies(window: Window): Cookies {
 
     return cookies;
 }
+
+export function getAccessToken(): string | undefined {
+    return Cookies(window).get('Access-Token')
+}
+
+export function setAccessToken(token: string): void {
+    Cookies(window).set('Access-Token', token)
+}
+
+export function removeAccessToken(): void {
+    Cookies(window).remove('Access-Token')
+}
+
+export function getMineDesc(): string | undefined {
+    return Cookies(window).get('MineDesc')
+}
+
+export function getMineName(): string | undefined {
+    return Cookies(window).get('MineName')
+}

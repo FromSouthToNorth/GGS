@@ -94,7 +94,6 @@ export function initializeCesium(refEl: HTMLElement): Ref<Viewer | null> {
 
 export function destroyCesium() {
   const viewer = toRaw(unref(viewerRef));
-  console.log('Destroying Cesium viewer: ', viewer);
 
   if (!viewer) return;
 
