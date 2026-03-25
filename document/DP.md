@@ -351,7 +351,7 @@ function defineApplicationConfig(defineOptions: ApplicationConfigOptions = {}) {
     const pathResolve = (pathname: string): string => resolve(root, '.', pathname)
     const timestamp = new Date().getTime()
     const applicationConfig: UserConfig = {
-      // base: VITE_PUBLIC_PATH,
+      base: VITE_PUBLIC_PATH,
       resolve: {
         alias: [
           // @/xxxx => src/xxxx
