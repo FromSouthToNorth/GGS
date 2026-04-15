@@ -8,7 +8,7 @@
 
 ### 开发环境变量 (.env.development)
 ```bash
-VITE_PUBLIC_PATH=/BWGGS/
+VITE_PUBLIC_PATH=/BWGGS
 VITE_PRODUCT_CODE=BWGGS
 VITE_API_BASE_URL=http://192.168.133.110:33382
 VITE_MQTT_HOST=192.168.133.110
@@ -22,7 +22,7 @@ VITE_APP_TITLE=矿井地质保障系统
 
 ### 生产环境变量 (.env.production)
 ```bash
-VITE_PUBLIC_PATH=/BWGGS/
+VITE_PUBLIC_PATH=/BWGGS
 VITE_PRODUCT_CODE=BWGGS
 VITE_API_BASE_URL=https://production-api.example.com
 VITE_MQTT_HOST=production-mqtt.example.com
