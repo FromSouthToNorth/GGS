@@ -7,7 +7,6 @@
 > **注意**: 此文档已拆分为多个模块化文档，便于查阅和维护。
 > 
 > **模块化文档索引：**
-> - [README](./README.md) - 项目概述和快速开始
 > - [ARCHITECTURE](./ARCHITECTURE.md) - 系统架构和模块说明
 > - [CESIUM](./CESIUM.md) - Cesium地图模块详细文档
 > - [MQTT](./MQTT.md) - MQTT消息通信详细文档
