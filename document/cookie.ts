@@ -166,3 +166,7 @@ export function getMineDesc(): string | undefined {
 export function getMineName(): string | undefined {
     return Cookies(window).get('MineName')
 }
+
+export function getToken(): string | undefined {
+    return Cookies(window).get('token')
+}
